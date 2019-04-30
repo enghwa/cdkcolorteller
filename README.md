@@ -21,3 +21,13 @@ cdk deploy
  * `cdk deploy`      deploy this stack to your default AWS account/region
  * `cdk diff`        compare deployed stack with current state
  * `cdk synth`       emits the synthesized CloudFormation template
+
+
+## AWS X-Ray
+In AWS Xray console, choose “Create group”, name the group “color”, and enter the expression that filters all the ``/color`` requests.
+
+```
+(service("colormesh/colorgateway-vn")) AND http.url ENDSWITH "/color"
+```
+
+![AWS Xray diagram](img/xray.png)
