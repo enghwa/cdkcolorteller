@@ -1,4 +1,8 @@
-# Quick start (in AWS Cloud9 or anywhere)
+# ColorTeller - AppMesh, X-Ray + Fargate Demo using AWS CDK
+
+colorteller, appmesh envoy Docker images are hosted on dockerhub for now.
+
+## Quick start (in AWS Cloud9 or anywhere)
 
 ```
 nvm install 8.14.0
