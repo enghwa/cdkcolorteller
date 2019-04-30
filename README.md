@@ -1,4 +1,16 @@
-# Useful commands
+# Quick start (in AWS Cloud9 or anywhere)
+
+```
+nvm install 8.14.0
+nvm alias default v8.14.0
+npm i -g aws-cdk
+npm install
+npm run build
+cdk deploy
+```
+
+
+## Useful commands
 
  * `npm run build`   compile typescript to js
  * `npm run watch`   watch for changes and compile
