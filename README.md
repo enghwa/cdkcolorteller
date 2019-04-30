@@ -12,6 +12,12 @@ npm install
 npm run build
 cdk deploy
 ```
+Once fully deployed, go to the newly created ALB and access its ``/color`` endpoint multiple times. the json output should rotate the 3 colors evenly.
+eg:
+http://farga-exter-yt5qsba6l5n1-1671653105.ap-southeast-1.elb.amazonaws.com/color
+
+Refer to this blog post for more info:
+https://medium.com/containers-on-aws/aws-app-mesh-walkthrough-deploy-the-color-app-on-amazon-ecs-de3452846e9d
 
 
 ## Useful commands
