@@ -1,6 +1,10 @@
 # ColorTeller - AppMesh, X-Ray + Fargate Demo using AWS CDK
 
-colorteller, appmesh envoy Docker images are hosted on dockerhub for now.
+This demo uses AWS CDK.
+you need to run `cdk bootstrap` as the CFN template generated (synthesized) is more than 2000 lines, compared to ~ 400+ LOC for TypeScript! 
+
+
+PS: colorteller, appmesh envoy Docker images are hosted on dockerhub for now.
 
 ## Quick start (in AWS Cloud9 or anywhere)
 
@@ -10,6 +14,7 @@ nvm alias default v8.14.0
 npm i -g aws-cdk
 npm install
 npm run build
+cdk bootstrap
 cdk deploy
 ```
 Once fully deployed, go to the newly created ALB and access its ``/color`` endpoint multiple times. the json output should rotate the 3 colors evenly.
