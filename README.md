@@ -31,6 +31,9 @@ http://farga-exter-yt5qsba6l5n1-1671653105.ap-southeast-1.elb.amazonaws.com/colo
 Or  you can use the newly created Vuejs frontend at:
 http://<ALBDNS>/app/
 
+![colorteller](img/colorteller.png)
+
+
 
 Refer to this blog post for more info:
 https://medium.com/containers-on-aws/aws-app-mesh-walkthrough-deploy-the-color-app-on-amazon-ecs-de3452846e9d
