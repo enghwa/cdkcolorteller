@@ -29,7 +29,7 @@ eg:
 http://farga-exter-yt5qsba6l5n1-1671653105.ap-southeast-1.elb.amazonaws.com/color
 
 Or  you can use the newly created Vuejs frontend at:
-http://<ALBDNS>/app/
+http://ALBDNS/app/
 
 ![colorteller](img/colorteller.png)
 
