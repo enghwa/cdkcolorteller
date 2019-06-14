@@ -17,9 +17,9 @@ npm run build
 cdk bootstrap
 cdk deploy
 ```
-this will deploy AWS Fargate/AppMesh/Frontend code as container, but we need to update vuejs container with the newly create ALB endpoint. 
+this will deploy AWS Fargate/AppMesh/Frontend code as container, but we need to update vuejs container with the newly create ALB endpoint.
 ```
-echo <ALB endpoint> > .env
+vi vueapp/src/App.vue #edit line 27 and assign the ALB DNS Name to "inputurl"
 npm run build
 cdk deploy
 ```

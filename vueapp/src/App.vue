@@ -24,7 +24,7 @@ export default {
   data() {
     return {
       color: "black",
-      inputurl: process.env.API_URL
+      inputurl: "http://ALB-DNS"
     };
   },
 
@@ -32,7 +32,7 @@ export default {
     sendJob: function() {
       // this.color = "red"
       axios
-        .get(this.inputurl)
+        .get(this.inputurl+'/color')
         .then(response => (this.color = response.data.color));
     }
   },
