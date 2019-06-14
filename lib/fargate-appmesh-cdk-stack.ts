@@ -352,6 +352,49 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
       targets: [colorgatewayService]
     });
 
+
+    //vue app
+    const vueAppDefinition = new ecs.FargateTaskDefinition(this, 'vapp',{
+      cpu: '2048',
+      memoryMiB: '4096'
+    });
+    vueAppDefinition.addContainer('vueApp', {
+      // image: ecs.ContainerImage.fromRegistry('kopi/vuecolorteller:latest'),
+      image: ecs.ContainerImage.fromAsset(this, 'vueapp-image', {
+        directory: './vueapp'
+      }),
+      cpu: 1024,
+      memoryLimitMiB: 2048,
+      logging: new ecs.AwsLogDriver(this, 'vueappcolorteller-logs', {
+        streamPrefix: 'vueApp'
+      })
+    }).addPortMappings({
+      containerPort: 80
+    })
+
+    let vueAppService = new ecs.FargateService(this, 'vueappcolorteller', {
+      cluster: fgCluster,
+      desiredCount: 1,
+      taskDefinition: vueAppDefinition
+    });
+
+    externalListener.addTargets('vue', {
+      port: 80,
+      pathPattern: "/app*",
+      priority: 100,
+      healthCheck: {
+        "port": 'traffic-port',
+        "path": '/',
+        "intervalSecs": 30,
+        "timeoutSeconds": 5,
+        "healthyThresholdCount": 5,
+        "unhealthyThresholdCount": 2,
+        "healthyHttpCodes": "200,301,302"
+      },
+      targets: [vueAppService]
+    })
+
+
     // tcp echo task and service
     const echoTaskDefinition = new ecs.FargateTaskDefinition(this, 'echo-task-definition', {
       taskRole: taskIAMRole
@@ -481,6 +524,7 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
           dnsTtlSec: 360
         }
       })
+
     }
   }
 }

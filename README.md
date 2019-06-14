@@ -11,12 +11,19 @@ PS: colorteller, appmesh envoy Docker images are hosted on dockerhub for now.
 ```
 nvm install 8.14.0
 nvm alias default v8.14.0
-npm i -g aws-cdk
+npm i -g aws-cdk@0.28.0
 npm install
 npm run build
 cdk bootstrap
 cdk deploy
 ```
+this will deploy AWS Fargate/AppMesh/Frontend code as container, but we need to update vuejs container with the newly create ALB endpoint. 
+```
+echo <ALB endpoint> > .env
+npm run build
+cdk deploy
+```
+
 Once fully deployed, go to the newly created ALB and access its ``/color`` endpoint multiple times. the json output should rotate the 3 colors evenly.
 eg:
 http://farga-exter-yt5qsba6l5n1-1671653105.ap-southeast-1.elb.amazonaws.com/color
