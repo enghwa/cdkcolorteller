@@ -19,7 +19,7 @@ cdk deploy
 ```
 this will deploy AWS Fargate/AppMesh/Frontend code as container, but we need to update vuejs container with the newly create ALB endpoint.
 ```
-vi vueapp/src/App.vue #edit line 27 and assign the ALB DNS Name to "inputurl"
+vi vueapp/src/App.vue # edit line 27 and assign the ALB DNS Name to "inputurl"
 npm run build
 cdk deploy
 ```
@@ -33,20 +33,10 @@ http://ALBDNS/app/
 
 ![colorteller](img/colorteller.png)
 
+## Change the routing weights to the colorteller backend
+you can change the current 1:1:1 weight of colorteller routes to show appmesh traffic shaping feature.
 
-
-Refer to this blog post for more info:
-https://medium.com/containers-on-aws/aws-app-mesh-walkthrough-deploy-the-color-app-on-amazon-ecs-de3452846e9d
-
-
-## Useful commands
-
- * `npm run build`   compile typescript to js
- * `npm run watch`   watch for changes and compile
- * `cdk deploy`      deploy this stack to your default AWS account/region
- * `cdk diff`        compare deployed stack with current state
- * `cdk synth`       emits the synthesized CloudFormation template
-
+https://ap-southeast-1.console.aws.amazon.com/appmesh/meshes/colormesh/virtual-routers/colorteller-vr
 
 ## AWS X-Ray
 In AWS Xray console, choose “Create group”, name the group “color”, and enter the expression that filters all the ``/color`` requests.
@@ -56,3 +46,8 @@ In AWS Xray console, choose “Create group”, name the group “color”, and 
 ```
 
 ![AWS Xray diagram](img/xray.png)
+
+
+Refer to this blog post for more info:
+https://medium.com/containers-on-aws/aws-app-mesh-walkthrough-deploy-the-color-app-on-amazon-ecs-de3452846e9d
+
