@@ -148,15 +148,16 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
             weightedTargets: [{
               virtualNode: "colorteller-blue-vn",
               weight: 1
-            },
-            {
-              virtualNode: "colorteller-red-vn",
-              weight: 1
-            },
-            {
-              virtualNode: "colorteller-white-vn",
-              weight: 1
-            }],
+            }
+            // {
+            //   virtualNode: "colorteller-red-vn",
+            //   weight: 0
+            // }
+            // {
+            //   virtualNode: "colorteller-white-vn",
+            //   weight: 0
+            // }
+          ],
           },
           match: {
             prefix: '/'
@@ -216,8 +217,8 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
       name: privateDomainName
     })
 
-
-    //task iam role
+    
+    // task iam role
     const taskIAMRole = new iam.Role(this, 'fgAppMeshDemoTaskExecutionRole', {
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
       inlinePolicies: {
@@ -526,5 +527,8 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
       })
 
     }
+
+    //print out ALB DNS
+    new cdk.CfnOutput(this, 'ALBDNS: ', { value: externalLB.dnsName });
   }
 }
