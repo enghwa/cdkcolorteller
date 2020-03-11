@@ -1,4 +1,4 @@
-import cdk = require('@aws-cdk/cdk');
+import cdk = require('@aws-cdk/core');
 import ec2 = require('@aws-cdk/aws-ec2');
 import ecs = require('@aws-cdk/aws-ecs');
 import elbv2 = require('@aws-cdk/aws-elasticloadbalancingv2');
@@ -16,44 +16,60 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
 
     // The code that defines your stack goes here
     const logGroup = new logs.LogGroup(this, "LogGroup", {
-      // logGroupName: "/cdk/fargate",
-      retentionDays: 30,
-      retainLogGroup: false
+      logGroupName: "/cdk/fargate",
+      retention: logs.RetentionDays.TWO_WEEKS,
+      removalPolicy: cdk.RemovalPolicy.DESTROY
     })
 
     const healthCheckDefault = {
       "port": 'traffic-port',
       "path": '/ping',
-      "intervalSecs": 30,
-      "timeoutSeconds": 5,
+      "interval": cdk.Duration.seconds(30),
+      "timeouts": cdk.Duration.seconds(5),
       "healthyThresholdCount": 5,
       "unhealthyThresholdCount": 2,
       "healthyHttpCodes": "200,301,302"
     }
 
     //new vpc
-    const vpc = new ec2.VpcNetwork(this, 'CDK-Fargate-VPC', {
+    const vpc = new ec2.Vpc(this, 'CDK-Fargate-VPC', {
       cidr: '10.88.0.0/16',
-      maxAZs: 3
+      maxAzs: 3
     });
 
     //sg for colortellers tasks
     const colortellerSecurityGroup = new ec2.SecurityGroup(this, "colortellerSecurityGroup", {
       allowAllOutbound: true,
-      groupName: 'colortellerSecurityGroup',
+      securityGroupName: 'colortellerSecurityGroup',
       vpc: vpc
     })
-    colortellerSecurityGroup.connections.allowFromAnyIPv4(new ec2.TcpPort(9080))
-    colortellerSecurityGroup.connections.allowFromAnyIPv4(new ec2.TcpPort(2701))
-    colortellerSecurityGroup.connections.allowFromAnyIPv4(new ec2.TcpPort(9901))
-    colortellerSecurityGroup.connections.allowFromAnyIPv4(new ec2.TcpPort(15000))
-    colortellerSecurityGroup.connections.allowFromAnyIPv4(new ec2.TcpPort(15001))
+    colortellerSecurityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(9080))
+    colortellerSecurityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(2701))
+    colortellerSecurityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(9901))
+    colortellerSecurityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(15000))
+    colortellerSecurityGroup.connections.allowFromAnyIpv4(ec2.Port.tcp(15001))
 
     //create a new mesh before we deploy any services on Fargate
     const colormesh = new appmesh.CfnMesh(this, 'color-appmesh', {
       meshName: meshName
     })
-
+/*
+    const vnListener = {
+      portMapping: {
+        port: 9080,
+        protocol: 'http'
+      },
+      healthCheck: {
+        healthyThreshold: 2,
+        interval: cdk.Duration.seconds(5), // min
+        path: '/ping',
+        port: 9080,
+        protocol: 'http',
+        timeout: cdk.Duration.seconds(2),
+        unhealthyThreshold: 2
+      }
+    }
+*/
     const vnListener = {
       portMapping: {
         port: 9080,
@@ -71,9 +87,10 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
     }
 
     const virtualNodes = ["colorteller-white", "colorteller-black", "colorteller-blue", "colorteller-red"]
+    let virtualNode = new Array();;
     for (var v = 0; v < virtualNodes.length; v++) {
       let virtualNodeHostName = (virtualNodes[v] == "colorteller-white") ? "colorteller." + privateDomainName : virtualNodes[v] + '.' + privateDomainName
-      new appmesh.CfnVirtualNode(this, "vn" + virtualNodes[v], {
+      virtualNode[v] = new appmesh.CfnVirtualNode(this, "vn" + virtualNodes[v], {
         meshName: meshName,
         virtualNodeName: virtualNodes[v] + '-vn',
         spec: {
@@ -84,8 +101,38 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
             }
           }
         }
-      }).addDependsOn(colormesh)
+      })
+      virtualNode[v].addDependsOn(colormesh)
     }
+
+    // vue virtual node
+    const vueVirtualNode = new appmesh.CfnVirtualNode(this, "vn-vue", {
+      meshName: meshName,
+      virtualNodeName: "vue-vn",
+      spec: {
+        listeners: [{
+          portMapping: {
+            port: 80,
+            protocol: 'http'
+          },
+          healthCheck: {
+            protocol: 'http',
+            path: '/app',
+            port: 80,
+            healthyThreshold: 2,
+            unhealthyThreshold: 2,
+            timeoutMillis: 2000,
+            intervalMillis: 5000
+          }
+        }],
+        serviceDiscovery: {
+          dns: {
+            hostname: "vue." + privateDomainName
+          }
+        }
+      }
+    })
+    vueVirtualNode.addDependsOn(colormesh)
 
     //echo virtual node and virtual service
     const tcpechoVirtualNode = new appmesh.CfnVirtualNode(this, "vn-tcpecho", {
@@ -138,7 +185,7 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
     })
     colortellerVirtualRouter.addDependsOn(colormesh)
 
-    new appmesh.CfnRoute(this, 'route-colorteller', {
+    const route = new appmesh.CfnRoute(this, 'route-colorteller', {
       meshName: meshName,
       virtualRouterName: "colorteller-vr",
       routeName: "colorteller-route",
@@ -164,7 +211,11 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
           }
         }
       }
-    }).addDependsOn(colortellerVirtualRouter)
+    })
+    route.addDependsOn(colortellerVirtualRouter)
+    for (var v = 0; v < virtualNode.length; v++) {
+      route.addDependsOn(virtualNode[v]);
+    }
 
     new appmesh.CfnVirtualService(this, 'vs-colorteller', {
       meshName: meshName,
@@ -223,19 +274,20 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
       inlinePolicies: {
         'XrayPut':
-          new iam.PolicyDocument().addStatement(
-            new iam.PolicyStatement()
-              .allow()
-              .addResource('*')
-              .addAction('xray:PutTraceSegments')
-          )
+          new iam.PolicyDocument({
+            statements: [ new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              resources: [ '*' ],
+              actions: [ 'xray:PutTraceSegments' ]
+            })]
+          })
       }
     })
 
     //color gateway task definition
     const colorgatewayTaskDefinition = new ecs.FargateTaskDefinition(this, 'colorgateway-task-definition', {
-      cpu: `256`,
-      memoryMiB: `512`,
+      cpu: 256,
+      memoryLimitMiB: 512,
       taskRole: taskIAMRole
     });
 
@@ -246,7 +298,7 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
         'SERVER_PORT': '9080',
         'TCP_ECHO_ENDPOINT': 'tcpecho.' + privateDomainName + ':2701'
       },
-      logging: new ecs.AwsLogDriver(this, 'fglog', {
+      logging: new ecs.AwsLogDriver({
         logGroup: logGroup,
         streamPrefix: "colorgateway-"
       })
@@ -266,12 +318,12 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
       },
       healthCheck: {
         command: ["curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"],
-        intervalSeconds: 5,
-        timeout: 2,
+        interval: cdk.Duration.seconds(5),
+        timeout: cdk.Duration.seconds(2),
         retries: 3
       },
       user: '1337',
-      logging: new ecs.AwsLogDriver(this, 'colorgateway-envoylog', {
+      logging: new ecs.AwsLogDriver({
         logGroup: logGroup,
         streamPrefix: "colorgatewayenvoy-"
       })
@@ -284,22 +336,22 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
     envoyContainer.addUlimits({
       hardLimit: 15000,
       softLimit: 15000,
-      name: ecs.UlimitName.Nofile
+      name: ecs.UlimitName.NOFILE
     })
 
     colorgatewayTaskDefinition.addContainer('xray', {
       image: ecs.ContainerImage.fromRegistry('amazon/aws-xray-daemon'),
       user: '1337',
-      logging: new ecs.AwsLogDriver(this, 'colorgateway-xraylog', {
+      logging: new ecs.AwsLogDriver({
         logGroup: logGroup,
         streamPrefix: "colorgatewayxray-"
       })
     }).addPortMappings({
       containerPort: 2000,
-      protocol: ecs.Protocol.Udp
+      protocol: ecs.Protocol.UDP
     })
 
-    const x = colorgatewayTaskDefinition.node.findChild('Resource') as ecs.CfnTaskDefinition;
+    var x = colorgatewayTaskDefinition.node.findChild('Resource') as ecs.CfnTaskDefinition;
     x.addPropertyOverride('ProxyConfiguration', {
       Type: 'APPMESH',
       ContainerName: 'envoy',
@@ -331,9 +383,9 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
       cluster: fgCluster,
       desiredCount: 1,
       taskDefinition: colorgatewayTaskDefinition,
-      serviceDiscoveryOptions: {
+      cloudMapOptions: {
         name: 'colorgateway',
-        dnsTtlSec: 300
+        dnsTtl: cdk.Duration.seconds(10)
       }
     });
 
@@ -356,27 +408,102 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
 
     //vue app
     const vueAppDefinition = new ecs.FargateTaskDefinition(this, 'vapp',{
-      cpu: '2048',
-      memoryMiB: '4096'
+      cpu: 2048,
+      memoryLimitMiB: 4096,
+      taskRole: taskIAMRole
     });
     vueAppDefinition.addContainer('vueApp', {
       // image: ecs.ContainerImage.fromRegistry('kopi/vuecolorteller:latest'),
-      image: ecs.ContainerImage.fromAsset(this, 'vueapp-image', {
-        directory: './vueapp'
-      }),
+      image: ecs.ContainerImage.fromAsset('./vueapp'),
       cpu: 1024,
       memoryLimitMiB: 2048,
-      logging: new ecs.AwsLogDriver(this, 'vueappcolorteller-logs', {
+      logging: new ecs.AwsLogDriver({
         streamPrefix: 'vueApp'
       })
     }).addPortMappings({
       containerPort: 80
     })
 
+    const vueEnvoyContainer = vueAppDefinition.addContainer('envoy', {
+      image: ecs.ContainerImage.fromRegistry('kopi/appmesh:latest'),
+      environment: {
+        'APPMESH_VIRTUAL_NODE_NAME': 'mesh/' + meshName + '/virtualNode/vue-vn',
+        // APPMESH_XDS_ENDPOINT
+        'ENABLE_ENVOY_STATS_TAGS': '1',
+        'ENABLE_ENVOY_XRAY_TRACING': '1',
+        'ENVOY_LOG_LEVEL': 'debug'
+      },
+      healthCheck: {
+        command: ["curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"],
+        interval: cdk.Duration.seconds(5),
+        timeout: cdk.Duration.seconds(2),
+        retries: 3
+      },
+      user: '1337',
+      logging: new ecs.AwsLogDriver({
+        logGroup: logGroup,
+        streamPrefix: "vueenvoy-"
+      })
+    })
+    vueEnvoyContainer.addPortMappings(
+      { containerPort: 9901 },
+      { containerPort: 15000 },
+      { containerPort: 15001 }
+    )
+    vueEnvoyContainer.addUlimits({
+      hardLimit: 15000,
+      softLimit: 15000,
+      name: ecs.UlimitName.NOFILE
+    })
+
+    vueAppDefinition.addContainer('xray', {
+      image: ecs.ContainerImage.fromRegistry('amazon/aws-xray-daemon'),
+      user: '1337',
+      logging: new ecs.AwsLogDriver({
+        logGroup: logGroup,
+        streamPrefix: "vue-xray-"
+      })
+    }).addPortMappings({
+      containerPort: 2000,
+      protocol: ecs.Protocol.UDP
+    })
+
+    var x = vueAppDefinition.node.findChild('Resource') as ecs.CfnTaskDefinition;
+    x.addPropertyOverride('ProxyConfiguration', {
+      Type: 'APPMESH',
+      ContainerName: 'envoy',
+      ProxyConfigurationProperties: [
+        {
+          Name: 'IgnoredUID',
+          Value: '1337',
+        },
+        {
+          Name: 'ProxyIngressPort',
+          Value: '15000',
+        },
+        {
+          Name: 'ProxyEgressPort',
+          Value: '15001',
+        },
+        {
+          Name: 'AppPorts',
+          Value: '80'
+        },
+        {
+          Name: 'EgressIgnoredIPs',
+          Value: '169.254.170.2,169.254.169.254',
+        },
+      ],
+    });
+
     let vueAppService = new ecs.FargateService(this, 'vueappcolorteller', {
       cluster: fgCluster,
       desiredCount: 1,
-      taskDefinition: vueAppDefinition
+      taskDefinition: vueAppDefinition,
+      cloudMapOptions: {
+        name: 'vue',
+        dnsTtl: cdk.Duration.seconds(10)
+      }
     });
 
     externalListener.addTargets('vue', {
@@ -386,8 +513,8 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
       healthCheck: {
         "port": 'traffic-port',
         "path": '/',
-        "intervalSecs": 30,
-        "timeoutSeconds": 5,
+        "interval": cdk.Duration.seconds(30),
+        "timeout": cdk.Duration.seconds(5),
         "healthyThresholdCount": 5,
         "unhealthyThresholdCount": 2,
         "healthyHttpCodes": "200,301,302"
@@ -414,9 +541,9 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
       desiredCount: 1,
       taskDefinition: echoTaskDefinition,
       securityGroup: colortellerSecurityGroup,
-      serviceDiscoveryOptions: {
+      cloudMapOptions: {
         name: 'tcpecho',
-        dnsTtlSec: 300
+        dnsTtl: cdk.Duration.seconds(10)
       }
     })
 
@@ -434,7 +561,7 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
           'COLOR': colorTellers[v],
           'SERVER_PORT': '9080'
         },
-        logging: new ecs.AwsLogDriver(this, 'colortellerApp-' + colorTellers[v] + '-log', {
+        logging: new ecs.AwsLogDriver({
           logGroup: logGroup,
           streamPrefix: 'colorteller-' + colorTellers[v] + '-'
         }),
@@ -452,12 +579,12 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
         },
         healthCheck: {
           command: ["curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"],
-          intervalSeconds: 5,
-          timeout: 2,
+          interval: cdk.Duration.seconds(5),
+          timeout: cdk.Duration.seconds(2),
           retries: 3
         },
         user: '1337',
-        logging: new ecs.AwsLogDriver(this, 'envoy-colorteller-' + colorTellers[v] + 'Log', {
+        logging: new ecs.AwsLogDriver({
           logGroup: logGroup,
           streamPrefix: "envoy-colorteller-" + colorTellers[v]
         })
@@ -470,19 +597,19 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
       thisEnvoy.addUlimits({
         hardLimit: 15000,
         softLimit: 15000,
-        name: ecs.UlimitName.Nofile
+        name: ecs.UlimitName.NOFILE
       })
 
       colorTellersTaskDefinition[v].addContainer('xray', {
         image: ecs.ContainerImage.fromRegistry('amazon/aws-xray-daemon'),
         user: '1337',
-        logging: new ecs.AwsLogDriver(this, 'colorteller-' + colorTellers[v] + '-xraylog', {
+        logging: new ecs.AwsLogDriver({
           logGroup: logGroup,
           streamPrefix: 'xray-colorteller-' + colorTellers[v]
         })
       }).addPortMappings({
         containerPort: 2000,
-        protocol: ecs.Protocol.Udp
+        protocol: ecs.Protocol.UDP
       })
 
       let proxyCfg = colorTellersTaskDefinition[v].node.findChild('Resource') as ecs.CfnTaskDefinition;
@@ -520,15 +647,15 @@ export class FargateAppmeshCdkStack extends cdk.Stack {
         desiredCount: 1,
         taskDefinition: colorTellersTaskDefinition[v],
         securityGroup: colortellerSecurityGroup,
-        serviceDiscoveryOptions: {
+        cloudMapOptions: {
           name: fgServiceName,
-          dnsTtlSec: 360
+          dnsTtl: cdk.Duration.seconds(10)
         }
       })
 
     }
 
     //print out ALB DNS
-    new cdk.CfnOutput(this, 'ALBDNS: ', { value: externalLB.dnsName });
+    new cdk.CfnOutput(this, 'ALBDNS: ', { value: externalLB.loadBalancerDnsName });
   }
 }
